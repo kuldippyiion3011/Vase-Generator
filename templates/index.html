@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Procedural Vase Designer</title>
+    <!-- <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" /> -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header>
+        <h1>Procedural Vase Generator 🏺</h1>
+        <div id="headerButtons">
+            <button id="generateBtn" style="display:none;">Generate</button>
+            <button id="saveBtn">Save</button>
+            <button id="exportBtn">Export</button>
+            <button id="favoritesBtn">Favorites</button>
+            <button id="modeBtn">Mode: Vase</button>
+            <button id="animationToggle">⏯ Animation</button>
+            <input type="text" id="searchBox" placeholder="Search favorites...">
+        </div>
+    </header>
+
+    <!-- Favorites Panel (hidden by default, shown by JS) -->
+    <div id="favoritesPanel" style="display:none; position:absolute; top:80px; right:0; width:340px; background:rgba(255,255,255,0.6); z-index:1000; border-radius:10px; box-shadow:0 2px 16px rgba(0,0,0,0.2); padding:18px 12px; max-height:80vh; overflow-y:auto;">
+        <div id="favoritesContainer">
+            <!-- Cards will be injected here by JS -->
+        </div>
+    </div>
+
+    <!-- Main Layout -->
+    <main>
+        <!-- Left Panel -->
+        <div id="leftPanel">
+            <div class="section">
+                <h3>Overall Proportions</h3>
+
+                <div class="slider-container">
+                    <label>Height</label>
+                    <input type="range" id="height" min="3" max="15" step="0.1" value="6">
+                </div>
+
+                <div class="slider-container">
+                    <label>Base Radius</label>
+                    <input type="range" id="baseRadius" min="0.5" max="4" step="0.1" value="1.2">
+                </div>
+
+                <div class="slider-container">
+                    <label>Top Radius</label>
+                    <input type="range" id="topRadius" min="0.5" max="4" step="0.1" value="2">
+                </div>
+
+                <div class="slider-container">
+                    <label>Width</label>
+                    <input type="range" id="width" min="0.5" max="3" step="0.05" value="1">
+                </div>
+
+                <div class="slider-container">
+                    <label>Wall Thickness</label>
+                    <input type="range" id="wallThickness" min="0.1" max="1" step="0.05" value="0.2">
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Curvature & Transition</h3>
+
+                <div class="slider-container">
+                    <label>Curvature</label>
+                    <input type="range" id="curvature" min="0" max="2" step="0.05" value="0">
+                </div>
+
+                <div class="slider-container">
+                    <label>Taper</label>
+                    <input type="range" id="taper" min="0.1" max="1" step="0.05" value="0.6">
+                </div>
+            </div>
+        </div>
+        <!-- Center Panel (Viewer + Dimensions) -->
+        <div id="centerPanel">
+            <div id="viewer">
+                <!-- Three.js canvas here -->
+            </div>
+
+            <!-- Real-world dimensions display -->
+            <div id="dimensionDisplay">
+                Height: <span id="heightInches">–</span> in
+                &nbsp; | &nbsp;
+                Diameter: <span id="diameterInches">–</span> in
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div id="rightPanel">
+            <div class="section">
+                <h3>Decorative Deformation</h3>
+
+                <div class="slider-container">
+                    <label>Segmentation</label>
+                    <input type="range" id="segments" min="4" max="80" step="1" value="8">
+                </div>
+
+                <div class="slider-container">
+                    <label>Twist</label>
+                    <input type="range" id="twist" min="0" max="180" step="1" value="0">
+                </div>
+                
+
+                <div class="slider-container">
+                    <label>Wave Amplitude</label>
+                    <input type="range" id="waveAmplitude" min="0" max="0.7" step="0.05" value="0">
+                </div>
+
+                <div class="slider-container">
+                    <label>Wave Frequency</label>
+                    <input type="range" id="waveFrequency" min="0" max="8" step="0.5" value="0">
+                </div>
+
+                <div class="slider-container">
+                    <label>Groove Depth</label>
+                    <input type="range" id="grooveDepth" min="0" max="0.5" step="0.05" value="0">
+                </div>
+
+                <div class="slider-container">
+                    <label>Spiral Pattern</label>
+                    <input type="range" id="spiral" min="0" max="0.5" step="0.05" value="0">
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Aesthetic</h3>
+                <label>Color</label>
+                <input type="color" id="colorPicker" value="#0091ff">
+            </div>
+        </div>
+    </main>
+    <script type="module" src="/static/script.js"></script>
+</body>
+
+</html>

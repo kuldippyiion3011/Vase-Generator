@@ -1,0 +1,21 @@
+# Ignore virtual environments
+env/
+venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE/editor settings
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Favorite Model Json & Model.stl
+*.Json
+*.stl
