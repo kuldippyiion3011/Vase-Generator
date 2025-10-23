@@ -40,6 +40,21 @@
                 <h3>Overall Proportions</h3>
 
                 <div class="slider-container">
+                    <label for="objectType">Object Type</label>
+                    <select id="objectType">
+                        <option value="">Select Object Type</option>
+                    </select>
+                </div>
+
+                <div class="slider-container">
+                    <div id="selectedMaterialDisplay" style="font-size: 14px; color: #666;">No material selected</div>
+                </div>
+
+                <div class="slider-container">
+                    <button id="showMaterialBtn" style="display:none;">Show Material</button>
+                </div>
+
+                <div class="slider-container">
                     <label>Height</label>
                     <input type="range" id="height" min="3" max="15" step="0.1" value="6">
                 </div>

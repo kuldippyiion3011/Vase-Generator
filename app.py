@@ -22,7 +22,7 @@ DB_CONFIG = {
     'host': 'localhost',
     'user': 'root',
     'password': 'root',  # Replace with your MySQL password
-    'database': 'RE3Dmysqldb'   # Replace with your database name
+    'database': 'RE3DmysqlDB_v2'   # Replace with your database name
 }
 
 def test_mysql_connection():
@@ -152,6 +152,50 @@ def get_favorites():
                 fav['filename'] = file
                 favorites.append(fav)
     return jsonify(favorites)
+
+# -------------------------------
+# Get Object Types
+# -------------------------------
+@app.route('/get_object_types', methods=['GET'])
+def get_object_types():
+    """Return all active object types from database."""
+    try:
+        connection = mysql.connector.connect(**DB_CONFIG)
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT id, object_type_name FROM object_type WHERE deleted_at IS NULL")
+        object_types = cursor.fetchall()
+        cursor.close()
+        connection.close()
+        return jsonify(object_types)
+    except Error as e:
+        print(f"Error fetching object types: {e}")
+        return jsonify({'error': 'Database error'}), 500
+
+
+# -------------------------------
+# Get Materials for Object Type
+# -------------------------------
+@app.route('/get_materials/<int:object_type_id>', methods=['GET'])
+def get_materials(object_type_id):
+    """Return materials associated with the given object type."""
+    try:
+        connection = mysql.connector.connect(**DB_CONFIG)
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT m.id, m.material_name, m.source, m.aged_cycling, m.exposure_type,
+                   m.age_duration, m.additive_filler_type, m.extrusion_method,
+                   m.test_name, m.metric, m.value, m.units, m.notes
+            FROM material_type m
+            JOIN material_object_type mot ON m.id = mot.material_type_id
+            WHERE mot.object_type_id = %s AND m.deleted_at IS NULL
+        """, (object_type_id,))
+        materials = cursor.fetchall()
+        cursor.close()
+        connection.close()
+        return jsonify(materials)
+    except Error as e:
+        print(f"Error fetching materials: {e}")
+        return jsonify({'error': 'Database error'}), 500
 
 
 # -------------------------------

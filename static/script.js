@@ -40,6 +40,7 @@ let currentParams = {};
 // let currentMode = 'procedural'; // for future expansion
 let currentMode = 'table'; // 'vase' or 'table'
 let animationId;
+let selectedMaterial = null;
 
 // ========== INIT ==========
 init();
@@ -92,6 +93,7 @@ function init() {
   updateDimensionsDisplay(); // ✅ show initial dimensions
 
   setupEventListeners();
+  loadObjectTypes();
 
   window.addEventListener("resize", onWindowResize);
 }
@@ -325,6 +327,23 @@ function updateVase() {
   updateDimensionsDisplay(); // ✅ update live when sliders move
 }
 
+// ========== LOAD OBJECT TYPES ==========
+function loadObjectTypes() {
+  fetch('/get_object_types')
+    .then(res => res.json())
+    .then(data => {
+      const select = document.getElementById('objectType');
+      select.innerHTML = '<option value="">Select Object Type</option>';
+      data.forEach(type => {
+        const option = document.createElement('option');
+        option.value = type.id;
+        option.textContent = type.object_type_name;
+        select.appendChild(option);
+      });
+    })
+    .catch(err => console.error('Error loading object types:', err));
+}
+
 // ========== EVENT LISTENERS ==========
 function setupEventListeners() {
   document.getElementById("modeBtn").addEventListener("click", () => {
@@ -338,6 +357,23 @@ function setupEventListeners() {
   sliders.forEach(slider => {
     slider.addEventListener("input", updateVase);
   });
+
+  document.getElementById("objectType").addEventListener("change", (e) => {
+    const selectedValue = e.target.value;
+    const showMaterialBtn = document.getElementById("showMaterialBtn");
+    if (selectedValue) {
+      showMaterialBtn.style.display = "block";
+      // Reset selected material when object type changes
+      selectedMaterial = null;
+      updateSelectedMaterialDisplay();
+    } else {
+      showMaterialBtn.style.display = "none";
+      selectedMaterial = null;
+      updateSelectedMaterialDisplay();
+    }
+  });
+
+  document.getElementById("showMaterialBtn").addEventListener("click", showMaterialsPopup);
 
   document.getElementById("generateBtn").addEventListener("click", updateVase);
   document.getElementById("animationToggle").addEventListener("click", toggleAnimation);
@@ -492,6 +528,177 @@ function showSavePopup() {
     popup.style.display = 'none';
   }, 1500);
 }
+}
+
+function updateSelectedMaterialDisplay() {
+  const display = document.getElementById('selectedMaterialDisplay');
+  if (selectedMaterial) {
+    display.textContent = `Selected Material: ${selectedMaterial.material_name}`;
+    display.style.color = '#007bff';
+  } else {
+    display.textContent = 'No material selected';
+    display.style.color = '#666';
+  }
+}
+
+function showMaterialsPopup() {
+  const objectTypeId = document.getElementById("objectType").value;
+  if (!objectTypeId) return;
+
+  fetch(`/get_materials/${objectTypeId}`)
+    .then(res => res.json())
+    .then(materials => {
+      // Create popup
+      const popup = document.createElement('div');
+      popup.id = 'materialsPopup';
+      popup.style.position = 'fixed';
+      popup.style.top = '0';
+      popup.style.left = '0';
+      popup.style.width = '100%';
+      popup.style.height = '100%';
+      popup.style.backgroundColor = 'rgba(0,0,0,0.5)';
+      popup.style.display = 'flex';
+      popup.style.justifyContent = 'center';
+      popup.style.alignItems = 'center';
+      popup.style.zIndex = '10000';
+
+      const popupContent = document.createElement('div');
+      popupContent.style.backgroundColor = '#fff';
+      popupContent.style.padding = '20px';
+      popupContent.style.borderRadius = '10px';
+      popupContent.style.width = 'fit-content';
+      popupContent.style.maxWidth = '1200px';
+      popupContent.style.minWidth = '400px';
+      popupContent.style.maxHeight = '80vh';
+      popupContent.style.overflowY = 'auto';
+      popupContent.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)';
+
+      const title = document.createElement('h3');
+      title.textContent = 'Available Materials';
+      title.style.marginBottom = '20px';
+      title.style.textAlign = 'center';
+      popupContent.appendChild(title);
+
+      if (materials.length === 0) {
+        const noMaterials = document.createElement('p');
+        noMaterials.textContent = 'No materials available for this object type.';
+        noMaterials.style.textAlign = 'center';
+        popupContent.appendChild(noMaterials);
+      } else {
+        const grid = document.createElement('div');
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        grid.style.gap = '15px';
+        grid.style.maxWidth = '100%';
+
+        materials.forEach(material => {
+          const card = document.createElement('div');
+          card.style.border = '1px solid #ddd';
+          card.style.borderRadius = '8px';
+          card.style.padding = '15px';
+          card.style.backgroundColor = '#f9f9f9';
+          card.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+          card.style.transition = 'all 0.2s';
+          card.style.width = '100%';
+          card.style.cursor = 'pointer';
+
+          // Highlight selected material
+          if (selectedMaterial && selectedMaterial.id === material.id) {
+            card.style.border = '2px solid #007bff';
+            card.style.backgroundColor = '#e7f3ff';
+          }
+
+          card.onmouseover = () => {
+            if (!selectedMaterial || selectedMaterial.id !== material.id) {
+              card.style.transform = 'scale(1.02)';
+              card.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+            }
+          };
+          card.onmouseout = () => {
+            if (!selectedMaterial || selectedMaterial.id !== material.id) {
+              card.style.transform = 'scale(1)';
+              card.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+            }
+          };
+
+          card.onclick = () => {
+            // Toggle selection
+            if (selectedMaterial && selectedMaterial.id === material.id) {
+              selectedMaterial = null;
+            } else {
+              selectedMaterial = material;
+            }
+            updateSelectedMaterialDisplay();
+            document.body.removeChild(popup);
+          };
+
+          const materialName = document.createElement('h4');
+          materialName.textContent = material.material_name;
+          materialName.style.margin = '0 0 10px 0';
+          materialName.style.color = '#333';
+          materialName.style.textAlign = 'center';
+          card.appendChild(materialName);
+
+          const fields = [
+            { label: 'Source', value: material.source },
+            { label: 'Aged Cycling', value: material.aged_cycling },
+            { label: 'Exposure Type', value: material.exposure_type },
+            { label: 'Age Duration', value: material.age_duration },
+            { label: 'Additive/Filler Type', value: material.additive_filler_type },
+            { label: 'Extrusion Method', value: material.extrusion_method },
+            { label: 'Test Name', value: material.test_name },
+            { label: 'Metric', value: material.metric },
+            { label: 'Value', value: material.value ? `${material.value} ${material.units || ''}` : null },
+            { label: 'Notes', value: material.notes }
+          ];
+
+          fields.forEach(field => {
+            if (field.value) {
+              const fieldDiv = document.createElement('div');
+              fieldDiv.style.marginBottom = '5px';
+              fieldDiv.style.fontSize = '14px';
+
+              const label = document.createElement('strong');
+              label.textContent = `${field.label}: `;
+              label.style.color = '#555';
+
+              const value = document.createElement('span');
+              value.textContent = field.value;
+              value.style.color = '#333';
+
+              fieldDiv.appendChild(label);
+              fieldDiv.appendChild(value);
+              card.appendChild(fieldDiv);
+            }
+          });
+
+          grid.appendChild(card);
+        });
+
+        popupContent.appendChild(grid);
+      }
+
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = 'Close';
+      closeBtn.style.display = 'block';
+      closeBtn.style.margin = '20px auto 0';
+      closeBtn.style.padding = '10px 20px';
+      closeBtn.style.backgroundColor = '#007bff';
+      closeBtn.style.color = '#fff';
+      closeBtn.style.border = 'none';
+      closeBtn.style.borderRadius = '5px';
+      closeBtn.style.cursor = 'pointer';
+      closeBtn.onclick = () => document.body.removeChild(popup);
+      popupContent.appendChild(closeBtn);
+
+      popup.appendChild(popupContent);
+      popup.onclick = (e) => {
+        if (e.target === popup) document.body.removeChild(popup);
+      };
+
+      document.body.appendChild(popup);
+    })
+    .catch(err => console.error('Error fetching materials:', err));
 }
 
 function loadFavorite(fav) {
