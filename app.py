@@ -199,6 +199,31 @@ def get_materials(object_type_id):
 
 
 # -------------------------------
+# Get Images for Material
+# -------------------------------
+@app.route('/get_material_images/<int:material_id>', methods=['GET'])
+def get_material_images(material_id):
+    """Return images associated with the given material."""
+    try:
+        connection = mysql.connector.connect(**DB_CONFIG)
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT mi.id, mi.image_name, mi.image_path, mi.description
+            FROM material_images mi
+            JOIN material_image_map mim ON mi.id = mim.image_id
+            WHERE mim.material_id = %s
+            ORDER BY mi.created_at DESC
+        """, (material_id,))
+        images = cursor.fetchall()
+        cursor.close()
+        connection.close()
+        return jsonify(images)
+    except Error as e:
+        print(f"Error fetching material images: {e}")
+        return jsonify({'error': 'Database error'}), 500
+
+
+# -------------------------------
 # Delete Favorite
 # -------------------------------
 @app.route('/delete_favorite/<filename>', methods=['DELETE'])

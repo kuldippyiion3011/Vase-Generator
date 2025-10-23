@@ -41,6 +41,8 @@ let currentParams = {};
 let currentMode = 'table'; // 'vase' or 'table'
 let animationId;
 let selectedMaterial = null;
+let isImportedModel = false;
+let originalImportedGeometry = null;
 
 // ========== INIT ==========
 init();
@@ -321,9 +323,75 @@ function updateVase() {
   const params = getParams();
   currentParams = params;
 
-  if (mesh) scene.remove(mesh);
-  mesh = createVaseMesh(params);
-  scene.add(mesh);
+  if (isImportedModel && originalImportedGeometry) {
+    // Apply only height, width, and twist transformations to imported model
+    if (mesh) scene.remove(mesh);
+
+    const geometry = originalImportedGeometry.clone();
+    const positions = geometry.attributes.position;
+
+    // Get transformation parameters
+    const height = params.height;
+    const width = params.width;
+    const twist = params.twist;
+
+    // Calculate original bounding box
+    geometry.computeBoundingBox();
+    const originalSize = new THREE.Vector3();
+    geometry.boundingBox.getSize(originalSize);
+    const originalCenter = new THREE.Vector3();
+    geometry.boundingBox.getCenter(originalCenter);
+
+    // Apply transformations
+    for (let i = 0; i < positions.count; i++) {
+      const vertex = new THREE.Vector3();
+      vertex.fromBufferAttribute(positions, i);
+
+      // Translate to origin
+      vertex.sub(originalCenter);
+
+      // Apply height scaling (uniform scaling in Y direction)
+      vertex.y *= height / originalSize.y;
+
+      // Apply width scaling (uniform scaling in X and Z directions)
+      vertex.x *= width;
+      vertex.z *= width;
+
+      // Apply twist (rotation around Y axis based on height)
+      const normalizedHeight = (vertex.y + (height / 2)) / height; // 0 to 1
+      const twistAngle = THREE.MathUtils.degToRad(twist) * normalizedHeight;
+      const cos = Math.cos(twistAngle);
+      const sin = Math.sin(twistAngle);
+      const newX = vertex.x * cos - vertex.z * sin;
+      const newZ = vertex.x * sin + vertex.z * cos;
+      vertex.x = newX;
+      vertex.z = newZ;
+
+      // Translate back
+      vertex.add(originalCenter);
+
+      positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+    }
+
+    positions.needsUpdate = true;
+    geometry.computeVertexNormals();
+
+    const material = new THREE.MeshStandardMaterial({
+      color: params.color,
+      metalness: 0.3,
+      roughness: 0.7,
+      side: THREE.DoubleSide,
+    });
+
+    mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+  } else {
+    // Normal procedural model generation
+    if (mesh) scene.remove(mesh);
+    mesh = createVaseMesh(params);
+    scene.add(mesh);
+  }
+
   updateDimensionsDisplay(); // ✅ update live when sliders move
 }
 
@@ -361,19 +429,24 @@ function setupEventListeners() {
   document.getElementById("objectType").addEventListener("change", (e) => {
     const selectedValue = e.target.value;
     const showMaterialBtn = document.getElementById("showMaterialBtn");
+    const materialPanel = document.getElementById("materialPanel");
     if (selectedValue) {
       showMaterialBtn.style.display = "block";
       // Reset selected material when object type changes
       selectedMaterial = null;
       updateSelectedMaterialDisplay();
+      // Hide material panel if it was open
+      materialPanel.style.display = "none";
+      showMaterialBtn.textContent = "Show Material";
     } else {
       showMaterialBtn.style.display = "none";
       selectedMaterial = null;
       updateSelectedMaterialDisplay();
+      materialPanel.style.display = "none";
     }
   });
 
-  document.getElementById("showMaterialBtn").addEventListener("click", showMaterialsPopup);
+  document.getElementById("showMaterialBtn").addEventListener("click", toggleMaterialSection);
 
   document.getElementById("generateBtn").addEventListener("click", updateVase);
   document.getElementById("animationToggle").addEventListener("click", toggleAnimation);
@@ -483,6 +556,10 @@ function importSTL() {
         // Remove current mesh
         if (mesh) scene.remove(mesh);
 
+        // Store original geometry for transformations
+        originalImportedGeometry = geometry.clone();
+        isImportedModel = true;
+
         // Create new mesh from imported geometry
         const material = new THREE.MeshStandardMaterial({
           color: document.getElementById("colorPicker").value,
@@ -497,7 +574,7 @@ function importSTL() {
         centerCameraOnVase();
         updateDimensionsDisplay();
 
-        alert('STL model imported successfully! You can now modify it using the sliders.');
+        alert('STL model imported successfully! You can now modify height, width, and twist using the sliders.');
       };
       reader.readAsArrayBuffer(file);
     }
@@ -587,167 +664,162 @@ function updateSelectedMaterialDisplay() {
   }
 }
 
-function showMaterialsPopup() {
+function toggleMaterialSection() {
   const objectTypeId = document.getElementById("objectType").value;
   if (!objectTypeId) return;
 
-  fetch(`/get_materials/${objectTypeId}`)
-    .then(res => res.json())
-    .then(materials => {
-      // Create popup
-      const popup = document.createElement('div');
-      popup.id = 'materialsPopup';
-      popup.style.position = 'fixed';
-      popup.style.top = '0';
-      popup.style.left = '0';
-      popup.style.width = '100%';
-      popup.style.height = '100%';
-      popup.style.backgroundColor = 'rgba(0,0,0,0.5)';
-      popup.style.display = 'flex';
-      popup.style.justifyContent = 'center';
-      popup.style.alignItems = 'center';
-      popup.style.zIndex = '10000';
+  const materialPanel = document.getElementById('materialPanel');
+  const materialContainer = document.getElementById('materialContainer');
+  const showMaterialBtn = document.getElementById('showMaterialBtn');
 
-      const popupContent = document.createElement('div');
-      popupContent.style.backgroundColor = '#fff';
-      popupContent.style.padding = '20px';
-      popupContent.style.borderRadius = '10px';
-      popupContent.style.width = 'fit-content';
-      popupContent.style.maxWidth = '1200px';
-      popupContent.style.minWidth = '400px';
-      popupContent.style.maxHeight = '80vh';
-      popupContent.style.overflowY = 'auto';
-      popupContent.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)';
+  if (materialPanel.style.display === 'none') {
+    // Show the panel and load materials
+    fetch(`/get_materials/${objectTypeId}`)
+      .then(res => res.json())
+      .then(materials => {
+        materialContainer.innerHTML = '';
 
-      const title = document.createElement('h3');
-      title.textContent = 'Available Materials';
-      title.style.marginBottom = '20px';
-      title.style.textAlign = 'center';
-      popupContent.appendChild(title);
+        if (materials.length === 0) {
+          materialContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: #666; margin: 20px 0;">No materials available for this object type.</p>';
+        } else {
+          materials.forEach(material => {
+            const card = document.createElement('div');
+            card.style.border = '1px solid #ddd';
+            card.style.borderRadius = '8px';
+            card.style.padding = '15px';
+            card.style.backgroundColor = '#f9f9f9';
+            card.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+            card.style.transition = 'all 0.2s';
+            card.style.width = '100%';
+            card.style.cursor = 'pointer';
 
-      if (materials.length === 0) {
-        const noMaterials = document.createElement('p');
-        noMaterials.textContent = 'No materials available for this object type.';
-        noMaterials.style.textAlign = 'center';
-        popupContent.appendChild(noMaterials);
-      } else {
-        const grid = document.createElement('div');
-        grid.style.display = 'grid';
-        grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
-        grid.style.gap = '15px';
-        grid.style.maxWidth = '100%';
-
-        materials.forEach(material => {
-          const card = document.createElement('div');
-          card.style.border = '1px solid #ddd';
-          card.style.borderRadius = '8px';
-          card.style.padding = '15px';
-          card.style.backgroundColor = '#f9f9f9';
-          card.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
-          card.style.transition = 'all 0.2s';
-          card.style.width = '100%';
-          card.style.cursor = 'pointer';
-
-          // Highlight selected material
-          if (selectedMaterial && selectedMaterial.id === material.id) {
-            card.style.border = '2px solid #007bff';
-            card.style.backgroundColor = '#00afd7';
-          }
-
-          card.onmouseover = () => {
-            if (!selectedMaterial || selectedMaterial.id !== material.id) {
-              card.style.transform = 'scale(1.02)';
-              card.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
-            }
-          };
-          card.onmouseout = () => {
-            if (!selectedMaterial || selectedMaterial.id !== material.id) {
-              card.style.transform = 'scale(1)';
-              card.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
-            }
-          };
-
-          card.onclick = () => {
-            // Toggle selection
+            // Highlight selected material
             if (selectedMaterial && selectedMaterial.id === material.id) {
-              selectedMaterial = null;
-            } else {
-              selectedMaterial = material;
+              card.style.border = '2px solid #007bff';
+              card.style.backgroundColor = '#00afd7';
             }
-            updateSelectedMaterialDisplay();
-            document.body.removeChild(popup);
-          };
 
-          const materialName = document.createElement('h4');
-          materialName.textContent = material.material_name;
-          materialName.style.margin = '0 0 10px 0';
-          materialName.style.color = '#333';
-          materialName.style.textAlign = 'center';
-          card.appendChild(materialName);
+            card.onmouseover = () => {
+              if (!selectedMaterial || selectedMaterial.id !== material.id) {
+                card.style.transform = 'scale(1.02)';
+                card.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+              }
+            };
+            card.onmouseout = () => {
+              if (!selectedMaterial || selectedMaterial.id !== material.id) {
+                card.style.transform = 'scale(1)';
+                card.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+              }
+            };
 
-          const fields = [
-            { label: 'Source', value: material.source },
-            { label: 'Aged Cycling', value: material.aged_cycling },
-            { label: 'Exposure Type', value: material.exposure_type },
-            { label: 'Age Duration', value: material.age_duration },
-            { label: 'Additive/Filler Type', value: material.additive_filler_type },
-            { label: 'Extrusion Method', value: material.extrusion_method },
-            { label: 'Test Name', value: material.test_name },
-            { label: 'Metric', value: material.metric },
-            { label: 'Value', value: material.value ? `${material.value} ${material.units || ''}` : null },
-            { label: 'Notes', value: material.notes }
-          ];
+            card.onclick = () => {
+              // Toggle selection
+              if (selectedMaterial && selectedMaterial.id === material.id) {
+                selectedMaterial = null;
+              } else {
+                selectedMaterial = material;
+              }
+              updateSelectedMaterialDisplay();
+              // Update all cards to reflect selection change
+              document.querySelectorAll('#materialContainer > div').forEach(c => {
+                if (selectedMaterial && c === card) {
+                  c.style.border = '2px solid #007bff';
+                  c.style.backgroundColor = '#00afd7';
+                } else {
+                  c.style.border = '1px solid #ddd';
+                  c.style.backgroundColor = '#f9f9f9';
+                }
+              });
+            };
 
-          fields.forEach(field => {
-            if (field.value) {
-              const fieldDiv = document.createElement('div');
-              fieldDiv.style.marginBottom = '5px';
-              fieldDiv.style.fontSize = '14px';
+            const nameContainer = document.createElement('div');
+            nameContainer.style.display = 'flex';
+            nameContainer.style.justifyContent = 'space-between';
+            nameContainer.style.alignItems = 'center';
+            nameContainer.style.marginBottom = '10px';
 
-              const label = document.createElement('strong');
-              label.textContent = `${field.label}: `;
-              label.style.color = '#555';
+            const materialName = document.createElement('h4');
+            materialName.textContent = material.material_name;
+            materialName.style.margin = '0';
+            materialName.style.color = '#333';
+            materialName.style.flex = '1';
 
-              const value = document.createElement('span');
-              value.textContent = field.value;
-              value.style.color = '#333';
+            const infoBtn = document.createElement('button');
+            infoBtn.textContent = 'ℹ️';
+            infoBtn.style.background = 'none';
+            infoBtn.style.border = 'none';
+            infoBtn.style.fontSize = '16px';
+            infoBtn.style.cursor = 'pointer';
+            infoBtn.style.padding = '2px 6px';
+            infoBtn.style.borderRadius = '3px';
+            infoBtn.style.transition = 'background-color 0.2s';
+            infoBtn.title = 'View material images';
 
-              fieldDiv.appendChild(label);
-              fieldDiv.appendChild(value);
-              card.appendChild(fieldDiv);
-            }
+            infoBtn.onmouseover = () => infoBtn.style.backgroundColor = '#e0e0e0';
+            infoBtn.onmouseout = () => infoBtn.style.backgroundColor = 'transparent';
+
+            infoBtn.onclick = (e) => {
+              e.stopPropagation(); // Prevent card selection
+              showMaterialImages(material.id, material.material_name);
+            };
+
+            nameContainer.appendChild(materialName);
+            nameContainer.appendChild(infoBtn);
+            card.appendChild(nameContainer);
+
+            const fields = [
+              { label: 'Source', value: material.source },
+              { label: 'Aged Cycling', value: material.aged_cycling },
+              { label: 'Exposure Type', value: material.exposure_type },
+              { label: 'Age Duration', value: material.age_duration },
+              { label: 'Additive/Filler Type', value: material.additive_filler_type },
+              { label: 'Extrusion Method', value: material.extrusion_method },
+              { label: 'Test Name', value: material.test_name },
+              { label: 'Metric', value: material.metric },
+              { label: 'Value', value: material.value ? `${material.value} ${material.units || ''}` : null },
+              { label: 'Notes', value: material.notes }
+            ];
+
+            fields.forEach(field => {
+              if (field.value) {
+                const fieldDiv = document.createElement('div');
+                fieldDiv.style.marginBottom = '5px';
+                fieldDiv.style.fontSize = '14px';
+
+                const label = document.createElement('strong');
+                label.textContent = `${field.label}: `;
+                label.style.color = '#555';
+
+                const value = document.createElement('span');
+                value.textContent = field.value;
+                value.style.color = '#333';
+
+                fieldDiv.appendChild(label);
+                fieldDiv.appendChild(value);
+                card.appendChild(fieldDiv);
+              }
+            });
+
+            materialContainer.appendChild(card);
           });
+        }
 
-          grid.appendChild(card);
-        });
-
-        popupContent.appendChild(grid);
-      }
-
-      const closeBtn = document.createElement('button');
-      closeBtn.textContent = 'Close';
-      closeBtn.style.display = 'block';
-      closeBtn.style.margin = '20px auto 0';
-      closeBtn.style.padding = '10px 20px';
-      closeBtn.style.backgroundColor = '#007bff';
-      closeBtn.style.color = '#fff';
-      closeBtn.style.border = 'none';
-      closeBtn.style.borderRadius = '5px';
-      closeBtn.style.cursor = 'pointer';
-      closeBtn.onclick = () => document.body.removeChild(popup);
-      popupContent.appendChild(closeBtn);
-
-      popup.appendChild(popupContent);
-      popup.onclick = (e) => {
-        if (e.target === popup) document.body.removeChild(popup);
-      };
-
-      document.body.appendChild(popup);
-    })
-    .catch(err => console.error('Error fetching materials:', err));
+        materialPanel.style.display = 'block';
+        showMaterialBtn.textContent = 'Hide Material';
+      })
+      .catch(err => console.error('Error fetching materials:', err));
+  } else {
+    // Hide the panel
+    materialPanel.style.display = 'none';
+    showMaterialBtn.textContent = 'Show Material';
+  }
 }
 
 function loadFavorite(fav) {
+  // Reset imported model state when loading favorites
+  isImportedModel = false;
+  originalImportedGeometry = null;
+
   // Set all sliders and color picker to favorite values
   document.getElementById("height").value = fav.height;
   document.getElementById("baseRadius").value = fav.baseRadius;

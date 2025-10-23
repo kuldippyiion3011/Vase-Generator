@@ -33,6 +33,14 @@
         </div>
     </div>
 
+    <!-- Material Panel (hidden by default, shown by JS) -->
+    <div id="materialPanel" style="display:none; position:absolute; top:80px; right:20px; width:1000px; background:rgba(255,255,255,0.6); z-index:1000; border-radius:10px; box-shadow:0 2px 16px rgba(0,0,0,0.2); padding:18px 12px; max-height:80vh; overflow-y:auto;">
+        <h4 style="margin: 0 0 15px 0; color: #222; text-align: center;">Available Materials</h4>
+        <div id="materialContainer" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+            <!-- Material cards will be injected here by JS -->
+        </div>
+    </div>
+
     <!-- Main Layout -->
     <main>
         <!-- Left Panel -->
