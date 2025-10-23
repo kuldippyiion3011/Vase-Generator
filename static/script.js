@@ -815,6 +815,88 @@ function toggleMaterialSection() {
   }
 }
 
+function showMaterialImages(materialId, materialName) {
+  fetch(`/get_material_images/${materialId}`)
+    .then(res => res.json())
+    .then(images => {
+      // Create popup overlay
+      const popup = document.createElement('div');
+      popup.style.position = 'fixed';
+      popup.style.top = '0';
+      popup.style.left = '0';
+      popup.style.width = '100%';
+      popup.style.height = '100%';
+      popup.style.background = 'rgba(0,0,0,0.8)';
+      popup.style.zIndex = '3000';
+      popup.style.display = 'flex';
+      popup.style.alignItems = 'center';
+      popup.style.justifyContent = 'center';
+      popup.onclick = () => document.body.removeChild(popup);
+
+      // Content container
+      const content = document.createElement('div');
+      content.style.background = 'white';
+      content.style.padding = '20px';
+      content.style.borderRadius = '10px';
+      content.style.maxWidth = '80%';
+      content.style.maxHeight = '80%';
+      content.style.overflow = 'auto';
+      content.onclick = (e) => e.stopPropagation();
+
+      // Title
+      const title = document.createElement('h3');
+      title.textContent = `Images for ${materialName}`;
+      title.style.marginTop = '0';
+      content.appendChild(title);
+
+      // Images or no images message
+      if (images.length === 0) {
+        const noImages = document.createElement('p');
+        noImages.textContent = 'No images available for this material.';
+        content.appendChild(noImages);
+      } else {
+        images.forEach(img => {
+          const imgEl = document.createElement('img');
+          imgEl.src = `${img.image_path}`;
+          imgEl.style.maxWidth = '100%';
+          imgEl.style.margin = '10px 0';
+          imgEl.style.borderRadius = '5px';
+          imgEl.alt = img.description || img.image_name;
+          content.appendChild(imgEl);
+
+          // Optional: Add description if available
+          if (img.description) {
+            const desc = document.createElement('p');
+            desc.textContent = img.description;
+            desc.style.fontSize = '14px';
+            desc.style.color = '#666';
+            content.appendChild(desc);
+          }
+        });
+      }
+
+      // Close button
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = 'Close';
+      closeBtn.style.marginTop = '20px';
+      closeBtn.style.padding = '10px 20px';
+      closeBtn.style.background = '#007bff';
+      closeBtn.style.color = 'white';
+      closeBtn.style.border = 'none';
+      closeBtn.style.borderRadius = '5px';
+      closeBtn.style.cursor = 'pointer';
+      closeBtn.onclick = () => document.body.removeChild(popup);
+      content.appendChild(closeBtn);
+
+      popup.appendChild(content);
+      document.body.appendChild(popup);
+    })
+    .catch(err => {
+      console.error('Error fetching material images:', err);
+      alert('Failed to load images. Please try again.');
+    });
+}
+
 function loadFavorite(fav) {
   // Reset imported model state when loading favorites
   isImportedModel = false;
