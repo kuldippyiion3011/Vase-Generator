@@ -534,7 +534,7 @@ function updateSelectedMaterialDisplay() {
   const display = document.getElementById('selectedMaterialDisplay');
   if (selectedMaterial) {
     display.textContent = `Selected Material: ${selectedMaterial.material_name}`;
-    display.style.color = '#007bff';
+    display.style.color = '#00afd7';
   } else {
     display.textContent = 'No material selected';
     display.style.color = '#666';
@@ -605,7 +605,7 @@ function showMaterialsPopup() {
           // Highlight selected material
           if (selectedMaterial && selectedMaterial.id === material.id) {
             card.style.border = '2px solid #007bff';
-            card.style.backgroundColor = '#e7f3ff';
+            card.style.backgroundColor = '#00afd7';
           }
 
           card.onmouseover = () => {
