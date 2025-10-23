@@ -838,7 +838,7 @@ function showMaterialImages(materialId, materialName) {
       content.style.background = 'white';
       content.style.padding = '20px';
       content.style.borderRadius = '10px';
-      content.style.maxWidth = '80%';
+      content.style.maxWidth = '90%';
       content.style.maxHeight = '80%';
       content.style.overflow = 'auto';
       content.onclick = (e) => e.stopPropagation();
@@ -847,6 +847,7 @@ function showMaterialImages(materialId, materialName) {
       const title = document.createElement('h3');
       title.textContent = `Images for ${materialName}`;
       title.style.marginTop = '0';
+      title.style.textAlign = 'center';
       content.appendChild(title);
 
       // Images or no images message
@@ -855,14 +856,28 @@ function showMaterialImages(materialId, materialName) {
         noImages.textContent = 'No images available for this material.';
         content.appendChild(noImages);
       } else {
+        // Container for images in a row
+        const imagesContainer = document.createElement('div');
+        imagesContainer.style.display = 'flex';
+        imagesContainer.style.flexWrap = 'wrap';
+        imagesContainer.style.justifyContent = 'center';
+        imagesContainer.style.gap = '10px';
+        content.appendChild(imagesContainer);
+
         images.forEach(img => {
+          const imgWrapper = document.createElement('div');
+          imgWrapper.style.display = 'flex';
+          imgWrapper.style.flexDirection = 'column';
+          imgWrapper.style.alignItems = 'center';
+
           const imgEl = document.createElement('img');
           imgEl.src = `${img.image_path}`;
-          imgEl.style.maxWidth = '100%';
-          imgEl.style.margin = '10px 0';
+          imgEl.style.width = '200px';
+          imgEl.style.height = '200px';
+          imgEl.style.objectFit = 'cover';
           imgEl.style.borderRadius = '5px';
           imgEl.alt = img.description || img.image_name;
-          content.appendChild(imgEl);
+          imgWrapper.appendChild(imgEl);
 
           // Optional: Add description if available
           if (img.description) {
@@ -870,8 +885,12 @@ function showMaterialImages(materialId, materialName) {
             desc.textContent = img.description;
             desc.style.fontSize = '14px';
             desc.style.color = '#666';
-            content.appendChild(desc);
+            desc.style.margin = '5px 0 0 0';
+            desc.style.textAlign = 'center';
+            imgWrapper.appendChild(desc);
           }
+
+          imagesContainer.appendChild(imgWrapper);
         });
       }
 
