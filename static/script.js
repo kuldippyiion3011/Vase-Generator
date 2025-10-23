@@ -378,6 +378,7 @@ function setupEventListeners() {
   document.getElementById("generateBtn").addEventListener("click", updateVase);
   document.getElementById("animationToggle").addEventListener("click", toggleAnimation);
   document.getElementById("saveBtn").addEventListener("click", saveFavorite);
+  document.getElementById("importBtn").addEventListener("click", importSTL);
   document.getElementById("exportBtn").addEventListener("click", exportSTL);
   document.getElementById("favoritesBtn").addEventListener("click", showFavorites);
   document.getElementById("searchBox").addEventListener("input", handleSearch);
@@ -434,12 +435,13 @@ function showFavorites() {
             <b>Mode:</b> ${fav.mode || 'vase'}
           </div>
           <button class="load-btn" data-idx="${idx}" style="margin:6px 6px 0 0;">Load</button>
-          <button class="delete-btn" data-idx="${idx}" style="margin:6px 0 0 0;">Delete</button>
+          <button class="delete-btn" data-filename="${fav.filename}" style="margin:6px 0 0 0;">Delete</button>
         `;
         container.appendChild(card);
       });
       container.querySelectorAll('.load-btn').forEach(btn => {
         btn.onclick = e => {
+          e.stopPropagation(); // Prevent event bubbling
           const fav = favorites[btn.dataset.idx];
           loadFavorite(fav);
           panel.style.display = 'none';
@@ -447,16 +449,60 @@ function showFavorites() {
       });
       container.querySelectorAll('.delete-btn').forEach(btn => {
         btn.onclick = e => {
-          const idx = btn.dataset.idx;
-          fetch(`/delete_favorite/${idx}`, { method: 'DELETE' })
-            .then(() => showFavorites());
+          e.stopPropagation(); // Prevent event bubbling
+          const filename = btn.dataset.filename;
+          
+          if (confirm('Are you sure you want to delete this favorite?')) {
+            fetch(`/delete_favorite/${filename}`, { method: 'DELETE' })
+              .then(res => res.json())
+              .then(() => showFavorites())
+              .catch(err => console.error('Delete failed:', err));
+          }
         };
       });
-      // Hide panel when clicking outside (optional, can be removed)
-        panel.onclick = e => {
-          if (e.target === panel) panel.style.display = 'none';
-        };
+      // Hide panel when clicking outside
+      panel.onclick = e => {
+        if (e.target === panel) panel.style.display = 'none';
+      };
     });
+}
+
+function importSTL() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.stl';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const loader = new STLLoader();
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const arrayBuffer = event.target.result;
+        const geometry = loader.parse(arrayBuffer);
+
+        // Remove current mesh
+        if (mesh) scene.remove(mesh);
+
+        // Create new mesh from imported geometry
+        const material = new THREE.MeshStandardMaterial({
+          color: document.getElementById("colorPicker").value,
+          metalness: 0.3,
+          roughness: 0.7,
+          side: THREE.DoubleSide,
+        });
+        mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+
+        // Center camera on imported model
+        centerCameraOnVase();
+        updateDimensionsDisplay();
+
+        alert('STL model imported successfully! You can now modify it using the sliders.');
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  };
+  input.click();
 }
 
 function exportSTL() {
