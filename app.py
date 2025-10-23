@@ -3,6 +3,8 @@ import os
 import json
 import base64
 from datetime import datetime
+import mysql.connector
+from mysql.connector import Error
 
 app = Flask(__name__)
 
@@ -13,8 +15,41 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FAV_DIR = os.path.join(BASE_DIR, "saved_favorites")
 PREVIEW_DIR = os.path.join(FAV_DIR, "previews")
 
+# -------------------------------
+# Database Configuration
+# -------------------------------
+DB_CONFIG = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'root',  # Replace with your MySQL password
+    'database': 'RE3Dmysqldb'   # Replace with your database name
+}
+
+def test_mysql_connection():
+    """Test MySQL database connection and print status."""
+    try:
+        connection = mysql.connector.connect(**DB_CONFIG)
+        if connection.is_connected():
+            db_info = connection.get_server_info()
+            print(f"✅ Successfully connected to MySQL Server version {db_info}")
+            cursor = connection.cursor()
+            cursor.execute("SELECT DATABASE();")
+            record = cursor.fetchone()
+            print(f"✅ Connected to database: {record[0]}")
+            cursor.close()
+            connection.close()
+            return True
+        else:
+            print("❌ Failed to connect to MySQL")
+            return False
+    except Error as e:
+        print(f"❌ Error connecting to MySQL: {e}")
+        return False
+
 os.makedirs(FAV_DIR, exist_ok=True)
 os.makedirs(PREVIEW_DIR, exist_ok=True)
+
+test_mysql_connection()
 
 
 # -------------------------------
