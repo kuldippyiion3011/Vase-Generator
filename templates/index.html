@@ -13,8 +13,8 @@
 
     <!-- Header -->
     <header>
-        <h1>Procedural Vase Generator 🏺</h1>
-        <div id="headerButtons">
+        <h1>Material Suggestion Wizard</h1>
+        <div id="headerButtons" class="hide">
             <button id="generateBtn" style="display:none;">Generate</button>
             <button id="saveBtn">Save</button>
             <button id="importBtn">Import STL</button>
@@ -63,33 +63,33 @@
                     <button id="showMaterialBtn" style="display:none;">Show Material</button>
                 </div>
 
-                <div class="slider-container">
+                <div class="slider-container hide">
                     <label>Height</label>
                     <input type="range" id="height" min="3" max="15" step="0.1" value="6">
                 </div>
 
-                <div class="slider-container">
+                <div class="slider-container hide">
                     <label>Base Radius</label>
                     <input type="range" id="baseRadius" min="0.5" max="4" step="0.1" value="1.2">
                 </div>
 
-                <div class="slider-container">
+                <div class="slider-container hide">
                     <label>Top Radius</label>
                     <input type="range" id="topRadius" min="0.5" max="4" step="0.1" value="2">
                 </div>
 
-                <div class="slider-container">
+                <div class="slider-container hide">
                     <label>Width</label>
                     <input type="range" id="width" min="0.5" max="3" step="0.05" value="1">
                 </div>
 
-                <div class="slider-container">
+                <div class="slider-container hide">
                     <label>Wall Thickness</label>
                     <input type="range" id="wallThickness" min="0.1" max="1" step="0.05" value="0.2">
                 </div>
             </div>
 
-            <div class="section">
+            <div class="section hide">
                 <h3>Curvature & Transition</h3>
 
                 <div class="slider-container">
@@ -110,7 +110,7 @@
             </div>
 
             <!-- Real-world dimensions display -->
-            <div id="dimensionDisplay">
+            <div id="dimensionDisplay" class="hide">
                 Height: <span id="heightInches">–</span> in
                 &nbsp; | &nbsp;
                 Diameter: <span id="diameterInches">–</span> in
@@ -118,7 +118,7 @@
         </div>
 
         <!-- Right Panel -->
-        <div id="rightPanel">
+        <div id="rightPanel" class="hide">
             <div class="section">
                 <h3>Decorative Deformation</h3>
 
