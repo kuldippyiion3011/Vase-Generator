@@ -21,7 +21,7 @@ PREVIEW_DIR = os.path.join(FAV_DIR, "previews")
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'root',  # Replace with your MySQL password
+    'password': 'Y!!0n1z3#',  # Replace with your MySQL password
     'database': 'RE3DmysqlDB_v2'   # Replace with your database name
 }
 
@@ -250,4 +250,4 @@ def delete_favorite(filename):
 # Main
 # -------------------------------
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host= '0.0.0.0', port=5001, debug=True)
