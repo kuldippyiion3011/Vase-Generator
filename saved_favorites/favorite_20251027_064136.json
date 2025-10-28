@@ -1,0 +1,17 @@
+{
+  "height": 6,
+  "baseRadius": 1.2,
+  "topRadius": 2,
+  "curvature": 0,
+  "taper": 0.6,
+  "segments": 8,
+  "twist": 0,
+  "waveAmplitude": 0,
+  "waveFrequency": 0,
+  "grooveDepth": 0,
+  "spiral": 0,
+  "color": "#0091ff",
+  "width": 1,
+  "wallThickness": 0.2,
+  "mode": "vase"
+}
