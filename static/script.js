@@ -8,6 +8,7 @@ import * as THREE from './three.module.js';
 import { OrbitControls } from './OrbitControls.js';
 import { STLLoader } from './STLLoader.js';
 import { STLExporter } from './STLExporter.js';
+
 // Helper to create cap geometry between two rings
 function createCap(ringOuter, ringInner, y, color) {
   const capGeom = new THREE.BufferGeometry();
@@ -226,10 +227,10 @@ function createVaseMesh(params) {
       heightSegments,
       true
     );
-    // Inner geometry (smaller radii)
+    // Inner geometry (smaller radii, solid base)
     const geometryInner = new THREE.CylinderGeometry(
       Math.max(topRadius - wallThickness, 0.01),
-      Math.max(baseRadius - wallThickness, 0.01),
+      0,  // Solid base: bottom radius 0
       height,
       radialSegments,
       heightSegments,
@@ -256,8 +257,15 @@ function createVaseMesh(params) {
         let finalX = x * Math.cos(twistAngle) - z * Math.sin(twistAngle) + spiralOffset + grooveTwist;
         let finalZ = x * Math.sin(twistAngle) + z * Math.cos(twistAngle) + wave * grooveDepth;
         if (inward) {
-          finalX *= 1;
-          finalZ *= 1;
+          // For solid base, make bottom ring have same width as outer bottom
+          if (Math.abs(vec.y + height / 2) < 1e-3) {
+            // Bottom ring: use outer radius scale
+            finalX = x * Math.cos(twistAngle) - z * Math.sin(twistAngle) + spiralOffset + grooveTwist;
+            finalZ = x * Math.sin(twistAngle) + z * Math.cos(twistAngle) + wave * grooveDepth;
+          } else {
+            finalX *= 1;
+            finalZ *= 1;
+          }
         }
         pos.setXYZ(i, finalX, vec.y, finalZ);
         // Store top/bottom rings
@@ -460,7 +468,7 @@ function setupEventListeners() {
 // ========== ANIMATION ==========
 function animate() {
   animationId = requestAnimationFrame(animate);
-  if (isAnimating && mesh) mesh.rotation.y += 0.01;
+  if (isAnimating && mesh) mesh.rotation.y += 0.005;
   controls.update();
   renderer.render(scene, camera);
 }
@@ -534,9 +542,12 @@ function showFavorites() {
         };
       });
       // Hide panel when clicking outside
-      panel.onclick = e => {
-        if (e.target === panel) panel.style.display = 'none';
-      };
+      document.addEventListener('click', function hidePanel(e) {
+        if (!panel.contains(e.target) && e.target !== document.getElementById('favoritesBtn')) {
+          panel.style.display = 'none';
+          document.removeEventListener('click', hidePanel);
+        }
+      });
     });
 }
 
@@ -552,6 +563,47 @@ function importSTL() {
       reader.onload = (event) => {
         const arrayBuffer = event.target.result;
         const geometry = loader.parse(arrayBuffer);
+
+        // Validate imported model parameters
+        const params = getParams();
+        const requiredParams = ['height', 'baseRadius', 'topRadius', 'curvature', 'taper', 'segments', 'twist', 'waveAmplitude', 'waveFrequency', 'grooveDepth', 'spiral', 'color', 'width', 'wallThickness'];
+        const missingParams = requiredParams.filter(param => params[param] === undefined || params[param] === null);
+
+        if (missingParams.length > 0) {
+          alert(`Imported model is missing required parameters: ${missingParams.join(', ')}. Please ensure all parameters are set before importing.`);
+          return;
+        }
+
+        // Check if parameters are within valid ranges
+        const paramRanges = {
+          height: [3, 15],
+          baseRadius: [0.5, 4],
+          topRadius: [0.5, 4],
+          curvature: [0, 2],
+          taper: [0.1, 1],
+          segments: [4, 80],
+          twist: [0, 180],
+          waveAmplitude: [0, 0.7],
+          waveFrequency: [0, 8],
+          grooveDepth: [0, 0.5],
+          spiral: [0, 0.5],
+          width: [0.5, 3],
+          wallThickness: [0.1, 1]
+        };
+
+        const invalidParams = [];
+        for (const param in paramRanges) {
+          const value = params[param];
+          const [min, max] = paramRanges[param];
+          if (value < min || value > max) {
+            invalidParams.push(`${param}: ${value} (should be between ${min} and ${max})`);
+          }
+        }
+
+        if (invalidParams.length > 0) {
+          alert(`Imported model has invalid parameter values:\n${invalidParams.join('\n')}. Please adjust the parameters to valid ranges.`);
+          return;
+        }
 
         // Remove current mesh
         if (mesh) scene.remove(mesh);
