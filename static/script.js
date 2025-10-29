@@ -504,37 +504,109 @@ function importSTL() {
   input.onchange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const loader = new STLLoader();
       const reader = new FileReader();
       reader.onload = (event) => {
-        const arrayBuffer = event.target.result;
-        const geometry = loader.parse(arrayBuffer);
+        const text = event.target.result;
 
+        // Try to find embedded parameter comment
+        const match = text.match(/\/\/ PARAMS:\s*(\{.*\})/);
+        let importedParams = null;
+        let importedMode = 'vase';
+
+        if (match && match[1]) {
+          try {
+            const parsed = JSON.parse(match[1]);
+            importedParams = parsed;
+            importedMode = parsed.mode || 'vase';
+            console.log('Imported Parameters:', importedParams);
+          } catch (err) {
+            console.warn('Failed to parse embedded parameters:', err);
+          }
+        }
+
+        // Parse geometry
+        const loader = new STLLoader();
+        const geometry = loader.parse(text);
 
         // Remove current mesh
         if (mesh) scene.remove(mesh);
 
-        // Store original geometry for transformations
-        originalImportedGeometry = geometry.clone();
-        isImportedModel = true;
+        if (importedParams) {
+          // If parameters were embedded, treat as procedural model
+          isImportedModel = false;
+          originalImportedGeometry = null;
 
-        // Create new mesh from imported geometry
-        const material = new THREE.MeshStandardMaterial({
-          color: document.getElementById("colorPicker").value,
-          metalness: 0.3,
-          roughness: 0.7,
-          side: THREE.DoubleSide,
-        });
-        mesh = new THREE.Mesh(geometry, material);
-        scene.add(mesh);
+          // Set all sliders and mode to imported values
+          document.getElementById("height").value = importedParams.height;
+          document.getElementById("baseRadius").value = importedParams.baseRadius;
+          document.getElementById("topRadius").value = importedParams.topRadius;
+          document.getElementById("curvature").value = importedParams.curvature;
+          document.getElementById("taper").value = importedParams.taper;
+          document.getElementById("segments").value = importedParams.segments;
+          document.getElementById("twist").value = importedParams.twist;
+          document.getElementById("waveAmplitude").value = importedParams.waveAmplitude;
+          document.getElementById("waveFrequency").value = importedParams.waveFrequency;
+          document.getElementById("grooveDepth").value = importedParams.grooveDepth;
+          document.getElementById("spiral").value = importedParams.spiral;
+          document.getElementById("colorPicker").value = importedParams.color;
+          document.getElementById("width").value = importedParams.width;
+          document.getElementById("wallThickness").value = importedParams.wallThickness;
+
+          // Set mode
+          currentMode = importedMode;
+          document.getElementById("modeBtn").textContent = `Mode: ${currentMode.charAt(0).toUpperCase() + currentMode.slice(1)}`;
+          document.getElementById("wallThickness").parentElement.style.display = currentMode === "table" ? "none" : "";
+
+          // Generate procedural model with imported parameters
+          mesh = createVaseMesh(importedParams);
+          scene.add(mesh);
+
+          alert('Model imported successfully! Parameters have been restored from the file.');
+        } else {
+          // No embedded parameters - treat as regular imported model
+          // Calculate parameters from imported geometry
+          const box = new THREE.Box3().setFromBufferAttribute(geometry.attributes.position);
+          const size = box.getSize(new THREE.Vector3());
+
+          // Set sliders based on imported model dimensions
+          document.getElementById("height").value = size.y;
+          document.getElementById("width").value = 1; // Normalize to 1
+          document.getElementById("baseRadius").value = Math.max(size.x, size.z) / 2;
+          document.getElementById("topRadius").value = Math.max(size.x, size.z) / 2;
+
+          // Set other parameters to neutral values for imported models
+          document.getElementById("curvature").value = 0;
+          document.getElementById("taper").value = 1;
+          document.getElementById("segments").value = 32;
+          document.getElementById("twist").value = 0;
+          document.getElementById("waveAmplitude").value = 0;
+          document.getElementById("waveFrequency").value = 1;
+          document.getElementById("grooveDepth").value = 0;
+          document.getElementById("spiral").value = 0;
+          document.getElementById("wallThickness").value = 0.2;
+
+          // Store original geometry for transformations
+          originalImportedGeometry = geometry.clone();
+          isImportedModel = true;
+
+          // Create new mesh from imported geometry
+          const material = new THREE.MeshStandardMaterial({
+            color: document.getElementById("colorPicker").value,
+            metalness: 0.3,
+            roughness: 0.7,
+            side: THREE.DoubleSide,
+          });
+          mesh = new THREE.Mesh(geometry, material);
+          scene.add(mesh);
+
+          alert('STL model imported successfully! Sliders have been set to match the imported model dimensions.');
+        }
 
         // Center camera on imported model
         centerCameraOnVase();
         updateDimensionsDisplay();
-
-        alert('STL model imported successfully! You can now modify height, width, and twist using the sliders.');
       };
-      reader.readAsArrayBuffer(file);
+      reader.readAsText(file); // Read as text to check for embedded parameters
     }
   };
   input.click();
@@ -556,8 +628,21 @@ function exportSTL() {
     const merged = BufferGeometryUtils.mergeBufferGeometries(geometries);
     exportMesh = new THREE.Mesh(merged);
   }
-  const stlString = exporter.parse(exportMesh);
-  const blob = new Blob([stlString], { type: 'text/plain' });
+
+  // Get STL data as string
+  let stlData = exporter.parse(exportMesh);
+
+  // Convert to string if it's ArrayBuffer (binary STL)
+  if (stlData instanceof ArrayBuffer) {
+    stlData = new TextDecoder().decode(stlData);
+  }
+
+  // Embed parameters as JSON comment in the STL
+  const paramsToEmbed = { ...currentParams, mode: currentMode };
+  const metaComment = `\n// PARAMS: ${JSON.stringify(paramsToEmbed)}\n`;
+  stlData = stlData.replace(/^solid [^\n]*/, match => match + metaComment);
+
+  const blob = new Blob([stlData], { type: 'text/plain' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = 'vase_model.stl';
