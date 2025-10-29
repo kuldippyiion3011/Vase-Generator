@@ -7,6 +7,7 @@ function onWindowResize() {
 import * as THREE from './three.module.js';
 import { OrbitControls } from './OrbitControls.js';
 import { STLLoader } from './STLLoader.js';
+import { BufferGeometryUtils } from './BufferGeometryUtils.js';
 import { STLExporter } from './STLExporter.js';
 
 // Helper to create cap geometry between two rings
@@ -332,66 +333,11 @@ function updateVase() {
   currentParams = params;
 
   if (isImportedModel && originalImportedGeometry) {
-    // Apply only height, width, and twist transformations to imported model
+    // Apply all procedural transformations to imported model as if it were generated
     if (mesh) scene.remove(mesh);
 
-    const geometry = originalImportedGeometry.clone();
-    const positions = geometry.attributes.position;
-
-    // Get transformation parameters
-    const height = params.height;
-    const width = params.width;
-    const twist = params.twist;
-
-    // Calculate original bounding box
-    geometry.computeBoundingBox();
-    const originalSize = new THREE.Vector3();
-    geometry.boundingBox.getSize(originalSize);
-    const originalCenter = new THREE.Vector3();
-    geometry.boundingBox.getCenter(originalCenter);
-
-    // Apply transformations
-    for (let i = 0; i < positions.count; i++) {
-      const vertex = new THREE.Vector3();
-      vertex.fromBufferAttribute(positions, i);
-
-      // Translate to origin
-      vertex.sub(originalCenter);
-
-      // Apply height scaling (uniform scaling in Y direction)
-      vertex.y *= height / originalSize.y;
-
-      // Apply width scaling (uniform scaling in X and Z directions)
-      vertex.x *= width;
-      vertex.z *= width;
-
-      // Apply twist (rotation around Y axis based on height)
-      const normalizedHeight = (vertex.y + (height / 2)) / height; // 0 to 1
-      const twistAngle = THREE.MathUtils.degToRad(twist) * normalizedHeight;
-      const cos = Math.cos(twistAngle);
-      const sin = Math.sin(twistAngle);
-      const newX = vertex.x * cos - vertex.z * sin;
-      const newZ = vertex.x * sin + vertex.z * cos;
-      vertex.x = newX;
-      vertex.z = newZ;
-
-      // Translate back
-      vertex.add(originalCenter);
-
-      positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
-    }
-
-    positions.needsUpdate = true;
-    geometry.computeVertexNormals();
-
-    const material = new THREE.MeshStandardMaterial({
-      color: params.color,
-      metalness: 0.3,
-      roughness: 0.7,
-      side: THREE.DoubleSide,
-    });
-
-    mesh = new THREE.Mesh(geometry, material);
+    // Create the model using the same logic as procedural generation
+    mesh = createVaseMesh(params);
     scene.add(mesh);
   } else {
     // Normal procedural model generation
@@ -564,46 +510,6 @@ function importSTL() {
         const arrayBuffer = event.target.result;
         const geometry = loader.parse(arrayBuffer);
 
-        // Validate imported model parameters
-        const params = getParams();
-        const requiredParams = ['height', 'baseRadius', 'topRadius', 'curvature', 'taper', 'segments', 'twist', 'waveAmplitude', 'waveFrequency', 'grooveDepth', 'spiral', 'color', 'width', 'wallThickness'];
-        const missingParams = requiredParams.filter(param => params[param] === undefined || params[param] === null);
-
-        if (missingParams.length > 0) {
-          alert(`Imported model is missing required parameters: ${missingParams.join(', ')}. Please ensure all parameters are set before importing.`);
-          return;
-        }
-
-        // Check if parameters are within valid ranges
-        const paramRanges = {
-          height: [3, 15],
-          baseRadius: [0.5, 4],
-          topRadius: [0.5, 4],
-          curvature: [0, 2],
-          taper: [0.1, 1],
-          segments: [4, 80],
-          twist: [0, 180],
-          waveAmplitude: [0, 0.7],
-          waveFrequency: [0, 8],
-          grooveDepth: [0, 0.5],
-          spiral: [0, 0.5],
-          width: [0.5, 3],
-          wallThickness: [0.1, 1]
-        };
-
-        const invalidParams = [];
-        for (const param in paramRanges) {
-          const value = params[param];
-          const [min, max] = paramRanges[param];
-          if (value < min || value > max) {
-            invalidParams.push(`${param}: ${value} (should be between ${min} and ${max})`);
-          }
-        }
-
-        if (invalidParams.length > 0) {
-          alert(`Imported model has invalid parameter values:\n${invalidParams.join('\n')}. Please adjust the parameters to valid ranges.`);
-          return;
-        }
 
         // Remove current mesh
         if (mesh) scene.remove(mesh);
@@ -639,18 +545,15 @@ function exportSTL() {
   let exportMesh = mesh;
   // If mesh is a group, merge children for export
   if (exportMesh.type === 'Group') {
-    // Use BufferGeometryUtils to merge geometries
     const geometries = exportMesh.children.map(child => {
       child.updateMatrixWorld();
       const geom = child.geometry.clone();
       geom.applyMatrix4(child.matrixWorld);
+      // Remove uv attribute to ensure all geometries have matching attributes
+      delete geom.attributes.uv;
       return geom;
     });
-    // BufferGeometryUtils is available in Three.js examples
-    // If not imported, add: import { BufferGeometryUtils } from './BufferGeometryUtils.js';
-    const merged = window.BufferGeometryUtils
-      ? window.BufferGeometryUtils.mergeBufferGeometries(geometries)
-      : geometries[0];
+    const merged = BufferGeometryUtils.mergeBufferGeometries(geometries);
     exportMesh = new THREE.Mesh(merged);
   }
   const stlString = exporter.parse(exportMesh);
