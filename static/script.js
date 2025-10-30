@@ -178,7 +178,7 @@ function createVaseMesh(params) {
   } = params;
 
   const radialSegments = segments;
-  const heightSegments = 100;
+  const heightSegments = 1000;
 
   if (currentMode === "table") {
     // Solid table: single mesh, ignore wall thickness, closed ends
@@ -221,54 +221,69 @@ function createVaseMesh(params) {
     // Vase mode: hollow mesh with wall thickness
     // Outer geometry
     const geometryOuter = new THREE.CylinderGeometry(
-      topRadius,
-      baseRadius,
+      1,
+      1,
       height,
       radialSegments,
       heightSegments,
       true
     );
-    // Inner geometry (smaller radii, solid base)
+    // Inner geometry
     const geometryInner = new THREE.CylinderGeometry(
-      Math.max(topRadius - wallThickness, 0.01),
-      0,  // Solid base: bottom radius 0
+      1,
+      1,
       height,
       radialSegments,
       heightSegments,
       true
     );
 
+    // Helper functions for radius computation
+    function computeROuter(y) {
+      const yNorm = (y + height / 2) / height;
+      let radiusScale = 1 + curvature * Math.pow(Math.sin(yNorm * Math.PI), 2);
+      radiusScale *= 1 - (1 - taper) * yNorm;
+      const baseR = baseRadius + (topRadius - baseRadius) * yNorm;
+      return baseR * radiusScale * width;
+    }
+
+    function computeRInner(y, rOuter) {
+      const yFromBottom = y + height / 2;
+      if (yFromBottom <= wallThickness) {
+        // Solid base: inner radius 0 at bottom
+        return 0;
+      } else if (yFromBottom < wallThickness * 2) {
+        // Mirror curvature near base for smooth inner bottom
+        const yMirror = wallThickness * 2 - yFromBottom;
+        const yNormMirror = yMirror / height;
+        let radiusScale = 1 + curvature * Math.pow(Math.sin(yNormMirror * Math.PI), 2);
+        radiusScale *= 1 - (1 - taper) * yNormMirror;
+        const baseR = baseRadius + (topRadius - baseRadius) * yNormMirror;
+        return baseR * radiusScale * width;
+      } else {
+        return Math.max(rOuter - wallThickness, 0);
+      }
+    }
+
     // Store top/bottom rings for capping
     let ringOuterTop = [], ringOuterBottom = [], ringInnerTop = [], ringInnerBottom = [];
     function deformGeometryWithRings(geometry, inward = false, storeRings = false) {
       const pos = geometry.attributes.position;
       const vec = new THREE.Vector3();
-      const n = radialSegments;
       for (let i = 0; i < pos.count; i++) {
         vec.fromBufferAttribute(pos, i);
-        const yNorm = (vec.y + height / 2) / height;
-        let radiusScale = 1 + curvature * Math.pow(Math.sin(yNorm * Math.PI), 2);
-        radiusScale *= 1 - (1 - taper) * yNorm;
-        const x = vec.x * radiusScale * width;
-        const z = vec.z * radiusScale * width;
+        const theta = Math.atan2(vec.z, vec.x);
+        const y = vec.y;
+        const rOuter = computeROuter(y);
+        const r = inward ? computeRInner(y, rOuter) : rOuter;
+        const yNorm = (y + height / 2) / height;
         const twistAngle = THREE.MathUtils.degToRad(twist) * yNorm;
         const wave = Math.sin(yNorm * waveFrequency * Math.PI * 2) * waveAmplitude;
         const spiralOffset = Math.sin(yNorm * Math.PI * 2) * spiral;
         const grooveTwist = 0;
-        let finalX = x * Math.cos(twistAngle) - z * Math.sin(twistAngle) + spiralOffset + grooveTwist;
-        let finalZ = x * Math.sin(twistAngle) + z * Math.cos(twistAngle) + wave * grooveDepth;
-        if (inward) {
-          // For solid base, make bottom ring have same width as outer bottom
-          if (Math.abs(vec.y + height / 2) < 1e-3) {
-            // Bottom ring: use outer radius scale
-            finalX = x * Math.cos(twistAngle) - z * Math.sin(twistAngle) + spiralOffset + grooveTwist;
-            finalZ = x * Math.sin(twistAngle) + z * Math.cos(twistAngle) + wave * grooveDepth;
-          } else {
-            finalX *= 1;
-            finalZ *= 1;
-          }
-        }
-        pos.setXYZ(i, finalX, vec.y, finalZ);
+        let finalX = r * Math.cos(theta + twistAngle) + spiralOffset + grooveTwist;
+        let finalZ = r * Math.sin(theta + twistAngle) + wave * grooveDepth;
+        pos.setXYZ(i, finalX, y, finalZ);
         // Store top/bottom rings
         if (storeRings) {
           if (Math.abs(vec.y - height / 2) < 1e-3) {
@@ -316,12 +331,29 @@ function createVaseMesh(params) {
     const group = new THREE.Group();
     group.add(new THREE.Mesh(geometryOuter, materialOuter));
     group.add(new THREE.Mesh(geometryInner, materialInner));
-    // Add caps to join top and bottom
+    // Add top cap
     if (ringOuterTop.length && ringInnerTop.length) {
       group.add(createCap(ringOuterTop, ringInnerTop, height / 2, materialOuter.color));
     }
-    if (ringOuterBottom.length && ringInnerBottom.length) {
-      group.add(createCap(ringOuterBottom, ringInnerBottom, -height / 2, materialOuter.color));
+    // Add solid base instead of thin cap
+    if (ringOuterBottom.length) {
+      const baseGeom = new THREE.BufferGeometry();
+      const vertices = [];
+      const indices = [];
+      const center = { x: 0, z: 0 };
+      vertices.push(center.x, -height / 2, center.z); // center vertex
+      ringOuterBottom.forEach(point => {
+        vertices.push(point.x, -height / 2, point.z);
+      });
+      for (let i = 1; i <= ringOuterBottom.length; i++) {
+        const next = i % ringOuterBottom.length + 1;
+        indices.push(0, i, next);
+      }
+      baseGeom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      baseGeom.setIndex(indices);
+      baseGeom.computeVertexNormals();
+      const baseMesh = new THREE.Mesh(baseGeom, materialOuter);
+      group.add(baseMesh);
     }
     return group;
   }
